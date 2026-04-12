@@ -17,6 +17,7 @@ import IconButton from "@mui/material/IconButton";
 import { Trash2 } from "lucide-react";
 import { HeaderDeleteControls } from "@/Components/monitors";
 import { GeoContinents } from "@/Types/GeoCheck";
+import { EscalationSettings } from "./components/EscalationSettings";
 
 import { BasePage, ConfigBox } from "@/Components/design-elements";
 import {
@@ -762,6 +763,14 @@ const CreateMonitorPage = () => {
 							);
 						}}
 					/>
+				}
+			/>
+
+			<ConfigBox
+				title={t("pages.createMonitor.form.escalation.title")}
+				subtitle={t("pages.createMonitor.form.escalation.description")}
+				rightContent={
+					<EscalationSettings control={control} />
 				}
 			/>
 

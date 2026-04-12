@@ -10,6 +10,7 @@ import {
 	IStatusService,
 	IncidentService,
 	type IGeoChecksService,
+	type IEscalationService,
 } from "@/service/index.js";
 import { CHECK_TTL_SENTINEL, type MaintenanceWindow, type StatusChangeResult } from "@/types/index.js";
 import {
@@ -38,7 +39,7 @@ export interface MonitorActionDecision {
 	shouldResolveIncident: boolean;
 	shouldSendNotification: boolean;
 	incidentReason: "status_down" | "threshold_breach" | null;
-	notificationReason: "status_change" | "threshold_breach" | null;
+	notificationReason: "status_change" | "threshold_breach" | "escalation" | null;
 	thresholdBreaches?: {
 		cpu?: boolean;
 		memory?: boolean;
@@ -58,6 +59,7 @@ export class SuperSimpleQueueHelper implements ISuperSimpleQueueHelper {
 	private settingsService: ISettingsService;
 	private buffer: IBufferService;
 	private incidentService: IncidentService;
+	private escalationService: IEscalationService;
 	private maintenanceWindowsRepository: IMaintenanceWindowsRepository;
 	private monitorsRepository: IMonitorsRepository;
 	private teamsRepository: ITeamsRepository;
@@ -76,6 +78,7 @@ export class SuperSimpleQueueHelper implements ISuperSimpleQueueHelper {
 		settingsService: ISettingsService,
 		buffer: IBufferService,
 		incidentService: IncidentService,
+		escalationService: IEscalationService,
 		maintenanceWindowsRepository: IMaintenanceWindowsRepository,
 		monitorsRepository: IMonitorsRepository,
 		teamsRepository: ITeamsRepository,
@@ -93,6 +96,7 @@ export class SuperSimpleQueueHelper implements ISuperSimpleQueueHelper {
 		this.buffer = buffer;
 		this.notificationsService = notificationsService;
 		this.incidentService = incidentService;
+		this.escalationService = escalationService;
 		this.maintenanceWindowsRepository = maintenanceWindowsRepository;
 		this.monitorsRepository = monitorsRepository;
 		this.teamsRepository = teamsRepository;
@@ -177,6 +181,19 @@ export class SuperSimpleQueueHelper implements ISuperSimpleQueueHelper {
 						stack: error instanceof Error ? error.stack : undefined,
 					});
 				});
+
+				// Step 8. Check and send escalation (best effort, don't wait)
+				const activeIncident = await this.incidentsRepository.findActiveByMonitorId(statusChangeResult.monitor.id, statusChangeResult.monitor.teamId);
+				if (activeIncident && statusChangeResult.monitor.escalation?.enabled) {
+					this.escalationService.checkAndSendEscalation(activeIncident, statusChangeResult.monitor, status).catch((error: unknown) => {
+						this.logger.warn({
+							message: `Error checking escalation for monitor ${monitor.id}: ${error instanceof Error ? error.message : "Unknown error"}`,
+							service: SERVICE_NAME,
+							method: "getMonitorJob",
+							stack: error instanceof Error ? error.stack : undefined,
+						});
+					});
+				}
 			} catch (error: unknown) {
 				this.logger.warn({
 					message: error instanceof Error ? error.message : "Unknown error",
