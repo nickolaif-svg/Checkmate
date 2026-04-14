@@ -41,18 +41,39 @@ export class EscalationService implements IEscalationService {
 		monitorStatusResponse: MonitorStatusResponse
 	): Promise<void> => {
 		try {
+			this.logger.debug({
+				message: `[ESCALATION DEBUG] Checking escalation for monitor ${monitor.id}: enabled=${monitor.escalation?.enabled}, incident=${incident.id}, status=${incident.status}, escalationSent=${incident.escalationSent}`,
+				service: SERVICE_NAME,
+				method: "checkAndSendEscalation",
+			});
+
 			// If escalation not enabled, skip
 			if (!monitor.escalation?.enabled) {
+				this.logger.debug({
+					message: `[ESCALATION DEBUG] Escalation not enabled for monitor ${monitor.id}`,
+					service: SERVICE_NAME,
+					method: "checkAndSendEscalation",
+				});
 				return;
 			}
 
 			// If incident not active, skip
 			if (!incident.status) {
+				this.logger.debug({
+					message: `[ESCALATION DEBUG] Incident not active for monitor ${monitor.id}`,
+					service: SERVICE_NAME,
+					method: "checkAndSendEscalation",
+				});
 				return;
 			}
 
 			// If escalation already sent for this incident, skip
 			if (incident.escalationSent) {
+				this.logger.debug({
+					message: `[ESCALATION DEBUG] Escalation already sent for incident ${incident.id}`,
+					service: SERVICE_NAME,
+					method: "checkAndSendEscalation",
+				});
 				return;
 			}
 
@@ -61,13 +82,36 @@ export class EscalationService implements IEscalationService {
 			const currentTime = Date.now();
 			const durationMinutes = (currentTime - startTime) / (1000 * 60);
 
+			this.logger.debug({
+				message: `[ESCALATION DEBUG] Monitor ${monitor.id}: duration=${durationMinutes.toFixed(1)}min, threshold=${monitor.escalation.durationMinutes}min`,
+				service: SERVICE_NAME,
+				method: "checkAndSendEscalation",
+			});
+
 			// Check if duration threshold has been met
 			if (durationMinutes < monitor.escalation.durationMinutes) {
+				this.logger.debug({
+					message: `[ESCALATION DEBUG] Duration threshold not met for monitor ${monitor.id}`,
+					service: SERVICE_NAME,
+					method: "checkAndSendEscalation",
+				});
 				return;
 			}
 
+			this.logger.info({
+				message: `[ESCALATION DEBUG] Duration threshold MET for monitor ${monitor.id}, sending escalation notification`,
+				service: SERVICE_NAME,
+				method: "checkAndSendEscalation",
+			});
+
 			// Get the notification to send
 			const notificationId = monitor.escalation.notificationId.toString();
+			this.logger.debug({
+				message: `[ESCALATION DEBUG] Looking up notification ${notificationId} for team ${monitor.teamId}`,
+				service: SERVICE_NAME,
+				method: "checkAndSendEscalation",
+			});
+
 			const notification = await this.notificationsRepository.findById(notificationId, monitor.teamId);
 			if (!notification) {
 				this.logger.warn({
@@ -87,9 +131,21 @@ export class EscalationService implements IEscalationService {
 				notificationReason: "escalation",
 			};
 
+			this.logger.info({
+				message: `[ESCALATION DEBUG] Sending escalation notification to ${notification.type} (${notificationId})`,
+				service: SERVICE_NAME,
+				method: "checkAndSendEscalation",
+			});
+
 			// Send escalation notification to the specified channel
 			try {
 				await this.notificationsService.sendNotificationsToIds([notificationId], monitor, monitorStatusResponse, decision);
+
+				this.logger.info({
+					message: `[ESCALATION DEBUG] Escalation notification sent, marking incident as escalationSent=true`,
+					service: SERVICE_NAME,
+					method: "checkAndSendEscalation",
+				});
 
 				// Mark escalation as sent
 				await this.incidentsRepository.updateById(incident.id, monitor.teamId, {

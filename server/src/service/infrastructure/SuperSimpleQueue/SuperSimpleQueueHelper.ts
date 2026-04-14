@@ -184,7 +184,17 @@ export class SuperSimpleQueueHelper implements ISuperSimpleQueueHelper {
 
 				// Step 8. Check and send escalation (best effort, don't wait)
 				const activeIncident = await this.incidentsRepository.findActiveByMonitorId(statusChangeResult.monitor.id, statusChangeResult.monitor.teamId);
+				this.logger.debug({
+					message: `[ESCALATION CHECK] Monitor ${statusChangeResult.monitor.id}: activeIncident=${!!activeIncident}, escalationEnabled=${statusChangeResult.monitor.escalation?.enabled}`,
+					service: SERVICE_NAME,
+					method: "getMonitorJob",
+				});
 				if (activeIncident && statusChangeResult.monitor.escalation?.enabled) {
+					this.logger.debug({
+						message: `[ESCALATION CHECK] Calling escalationService for monitor ${statusChangeResult.monitor.id}`,
+						service: SERVICE_NAME,
+						method: "getMonitorJob",
+					});
 					this.escalationService.checkAndSendEscalation(activeIncident, statusChangeResult.monitor, status).catch((error: unknown) => {
 						this.logger.warn({
 							message: `Error checking escalation for monitor ${monitor.id}: ${error instanceof Error ? error.message : "Unknown error"}`,
